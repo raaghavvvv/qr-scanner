@@ -7,53 +7,152 @@ function QRScanner({ onScanSuccess, onScanError, onCancel }) {
   const html5QrCodeRef = useRef(null)
   const [isInitializing, setIsInitializing] = useState(true)
   const [hasPermission, setHasPermission] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     const scannerId = 'qr-reader'
-    html5QrCodeRef.current = new Html5Qrcode(scannerId)
-
-    const startScanner = async () => {
-      try {
-        await html5QrCodeRef.current.start(
-          { facingMode: 'environment' },
-          {
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1
-          },
-          (decodedText) => {
-            // Stop scanning on successful read
-            html5QrCodeRef.current.stop().then(() => {
-              onScanSuccess(decodedText)
-            }).catch(console.error)
-          },
-          (errorMessage) => {
-            // Ignore continuous scan errors
-            if (onScanError) {
-              onScanError(errorMessage)
-            }
-          }
-        )
+    
+    // Wait for DOM element to be ready
+    const initScanner = async () => {
+      // Small delay to ensure DOM is ready
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      const element = document.getElementById(scannerId)
+      if (!element) {
+        console.error('Scanner element not found')
+        setError('Scanner element not found')
         setIsInitializing(false)
-      } catch (err) {
-        console.error('Failed to start scanner:', err)
         setHasPermission(false)
+        return
+      }
+
+      try {
+        html5QrCodeRef.current = new Html5Qrcode(scannerId)
+        
+        const startScanner = async () => {
+          try {
+            // Request camera permissions first
+            const devices = await Html5Qrcode.getCameras()
+            if (devices && devices.length === 0) {
+              throw new Error('No cameras found')
+            }
+
+            // Find back camera (environment) or use first available
+            let cameraId = null
+            for (const device of devices) {
+              if (device.label.toLowerCase().includes('back') || 
+                  device.label.toLowerCase().includes('rear') ||
+                  device.label.toLowerCase().includes('environment')) {
+                cameraId = device.id
+                break
+              }
+            }
+            
+            // If no back camera found, use first available
+            if (!cameraId && devices.length > 0) {
+              cameraId = devices[0].id
+            }
+
+            const config = {
+              fps: 10,
+              qrbox: { width: 250, height: 250 },
+              aspectRatio: 1,
+              videoConstraints: {
+                facingMode: 'environment'
+              }
+            }
+
+            await html5QrCodeRef.current.start(
+              cameraId || { facingMode: 'environment' },
+              config,
+              (decodedText) => {
+                // Stop scanning on successful read
+                if (html5QrCodeRef.current) {
+                  html5QrCodeRef.current.stop().then(() => {
+                    onScanSuccess(decodedText)
+                  }).catch(console.error)
+                }
+              },
+              (errorMessage) => {
+                // Ignore continuous scan errors (not found, etc.)
+                // Only log actual errors
+                if (errorMessage && !errorMessage.includes('NotFoundException')) {
+                  console.log('Scan error:', errorMessage)
+                }
+              }
+            )
+            // Successfully started - camera is working
+            setIsInitializing(false)
+            setError(null)
+            setHasPermission(true)
+          } catch (err) {
+            console.error('Failed to start scanner:', err)
+            // Only show permission error for actual permission issues
+            const isPermissionError = err.message.includes('Permission') || 
+                                     err.message.includes('NotAllowedError') ||
+                                     err.message.includes('NotReadableError') ||
+                                     err.name === 'NotAllowedError' ||
+                                     err.name === 'NotReadableError'
+            
+            if (isPermissionError) {
+              setError(err.message)
+              setHasPermission(false)
+            } else {
+              // For other errors, try to continue - might still work
+              setError(null)
+              setHasPermission(true)
+            }
+            setIsInitializing(false)
+          }
+        }
+
+        startScanner()
+      } catch (err) {
+        console.error('Failed to initialize scanner:', err)
+        // Only show error for actual permission issues
+        const isPermissionError = err.message.includes('Permission') || 
+                                 err.message.includes('NotAllowedError') ||
+                                 err.message.includes('NotReadableError')
+        if (isPermissionError) {
+          setError(err.message)
+          setHasPermission(false)
+        } else {
+          setError(null)
+          setHasPermission(true)
+        }
         setIsInitializing(false)
       }
     }
 
-    startScanner()
+    initScanner()
 
     return () => {
-      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-        html5QrCodeRef.current.stop().catch(console.error)
+      const stopScanner = async () => {
+        if (html5QrCodeRef.current) {
+          try {
+            if (html5QrCodeRef.current.isScanning) {
+              await html5QrCodeRef.current.stop()
+            }
+            await html5QrCodeRef.current.clear()
+          } catch (err) {
+            console.error('Error stopping scanner:', err)
+          }
+        }
       }
+      stopScanner()
     }
   }, [onScanSuccess, onScanError])
 
   const handleCancel = async () => {
-    if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-      await html5QrCodeRef.current.stop().catch(console.error)
+    try {
+      if (html5QrCodeRef.current) {
+        if (html5QrCodeRef.current.isScanning) {
+          await html5QrCodeRef.current.stop()
+        }
+        await html5QrCodeRef.current.clear()
+      }
+    } catch (err) {
+      console.error('Error stopping scanner:', err)
     }
     onCancel()
   }
@@ -72,13 +171,13 @@ function QRScanner({ onScanSuccess, onScanError, onCancel }) {
 
       <div className="scanner-container">
         {isInitializing && (
-          <div className="scanner-loading">
+          <div className="scanner-loading" style={{ position: 'absolute', zIndex: 10 }}>
             <div className="spinner"></div>
             <p>Initializing camera...</p>
           </div>
         )}
 
-        {!hasPermission && (
+        {!hasPermission && !isInitializing && error && (
           <div className="permission-denied">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M1 1l22 22"/>
@@ -86,8 +185,16 @@ function QRScanner({ onScanSuccess, onScanError, onCancel }) {
               <path d="M9.5 9.5A5 5 0 0 0 7 14a5 5 0 0 0 9.24 2.76"/>
             </svg>
             <h3>Camera Access Required</h3>
-            <p>Please allow camera access to scan QR codes</p>
-            <button className="retry-button" onClick={() => window.location.reload()}>
+            <p>{error || 'Please allow camera access to scan QR codes'}</p>
+            <button 
+              className="retry-button" 
+              onClick={() => {
+                setIsInitializing(true)
+                setHasPermission(true)
+                setError(null)
+                window.location.reload()
+              }}
+            >
               Try Again
             </button>
           </div>
@@ -96,7 +203,7 @@ function QRScanner({ onScanSuccess, onScanError, onCancel }) {
         <div 
           id="qr-reader" 
           ref={scannerRef}
-          className={`qr-reader ${isInitializing ? 'hidden' : ''}`}
+          className="qr-reader"
         ></div>
 
         {!isInitializing && hasPermission && (

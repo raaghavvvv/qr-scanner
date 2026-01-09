@@ -4,19 +4,46 @@
  * @returns {Object} Parsed Aadhar data
  */
 export function parseAadharXML(xmlString) {
+  if (!xmlString || typeof xmlString !== 'string') {
+    throw new Error('Invalid QR code data: Empty or invalid input')
+  }
+
+  // Clean the XML string - remove any leading/trailing whitespace
+  let cleanedXml = xmlString.trim()
+  
+  // If it doesn't start with <?xml, try to find the XML part
+  if (!cleanedXml.startsWith('<?xml') && !cleanedXml.startsWith('<PrintLetterBarcodeData')) {
+    // Try to extract XML from the string
+    const xmlMatch = cleanedXml.match(/<?xml[\s\S]*<\/PrintLetterBarcodeData>/i) || 
+                     cleanedXml.match(/<PrintLetterBarcodeData[\s\S]*\/>/i)
+    if (xmlMatch) {
+      cleanedXml = xmlMatch[0]
+    }
+  }
+
+  // If still no XML declaration, add it
+  if (!cleanedXml.startsWith('<?xml')) {
+    cleanedXml = '<?xml version="1.0" encoding="UTF-8"?>' + cleanedXml
+  }
+
   const parser = new DOMParser()
-  const xmlDoc = parser.parseFromString(xmlString, 'text/xml')
+  const xmlDoc = parser.parseFromString(cleanedXml, 'text/xml')
   
   // Check for parsing errors
   const parseError = xmlDoc.querySelector('parsererror')
   if (parseError) {
-    throw new Error('Invalid XML format')
+    const errorText = parseError.textContent || 'Unknown XML parsing error'
+    console.error('XML Parse Error:', errorText)
+    console.error('Original XML:', xmlString.substring(0, 200))
+    throw new Error(`Invalid XML format: ${errorText.substring(0, 100)}`)
   }
 
   // Get the PrintLetterBarcodeData element
   const barcodeData = xmlDoc.querySelector('PrintLetterBarcodeData')
   if (!barcodeData) {
-    throw new Error('Invalid Aadhar QR code format')
+    console.error('No PrintLetterBarcodeData found in XML')
+    console.error('XML content:', cleanedXml.substring(0, 500))
+    throw new Error('Invalid Aadhar QR code format: Missing PrintLetterBarcodeData element')
   }
 
   // Extract all attributes

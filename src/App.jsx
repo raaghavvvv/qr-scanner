@@ -24,11 +24,14 @@ function App() {
 
   const handleScanSuccess = (decodedText) => {
     try {
+      console.log('Scanned QR code data:', decodedText.substring(0, 200))
       const parsedData = parseAadharXML(decodedText)
+      console.log('Parsed data:', parsedData)
       setAadharData(parsedData)
       setAppState(APP_STATES.FORM)
     } catch (err) {
-      setError('Invalid QR code format. Please scan a valid Aadhar QR code.')
+      console.error('Parse error:', err)
+      setError(`Invalid QR code format: ${err.message}. Please scan a valid Aadhar QR code.`)
       setAppState(APP_STATES.LANDING)
     }
   }
