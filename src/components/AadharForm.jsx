@@ -4,16 +4,16 @@ import { formatUID, getFullGender, calculateAge } from '../utils/xmlParser'
 
 const APPOINTMENT_OPTIONS = [
   { value: '', label: 'Select appointment type' },
-  { value: 'address_update', label: 'Address Update' },
-  { value: 'mobile_update', label: 'Mobile Number Update' },
-  { value: 'biometric_update', label: 'Biometric Update' },
-  { value: 'name_correction', label: 'Name Correction' },
-  { value: 'dob_correction', label: 'Date of Birth Correction' },
-  { value: 'gender_correction', label: 'Gender Correction' },
-  { value: 'new_enrollment', label: 'New Enrollment' },
-  { value: 'duplicate_card', label: 'Duplicate Aadhar Card' },
-  { value: 'pvc_card', label: 'PVC Aadhar Card Request' },
-  { value: 'other', label: 'Other Services' }
+  { value: 'sample_value_1', label: 'Sample value 1' },
+  { value: 'sample_value_2', label: 'Sample value 2' },
+  { value: 'sample_value_3', label: 'Sample value 3' },
+  { value: 'sample_value_4', label: 'Sample value 4' },
+  { value: 'sample_value_5', label: 'Sample value 5' },
+  { value: 'sample_value_6', label: 'Sample value 6' },
+  { value: 'sample_value_7', label: 'Sample value 7' },
+  { value: 'sample_value_8', label: 'Sample value 8' },
+  { value: 'sample_value_9', label: 'Sample value 9' },
+  { value: 'sample_value_10', label: 'Sample value 10' }
 ]
 
 function AadharForm({ data, onSubmit, onBack, isSubmitting = false }) {
